@@ -77,7 +77,7 @@ func TestEndToEndThroughARealRelay(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// the control side: a locked bunker refuses, unlocking is done through the same function the socket uses
-	_, secret, _ := store.Add("quill", "quill", time.Now())
+	_, secret, _ := store.Add("quill", "quill", "", time.Now())
 	tpk, _ := nostr.GetPublicKey(transport)
 	addr := fmt.Sprintf("bunker://%s?relay=%s&secret=%s", tpk, relay, secret)
 	clientSK := nostr.GeneratePrivateKey()
@@ -120,10 +120,20 @@ func TestHoldForAnExternalClient(t *testing.T) {
 	}
 	var secs int
 	fmt.Sscan(hold, &secs)
-	relay := startRelay(t)
+	relay := os.Getenv("BUNKER_RELAY") // an existing relay to listen on (the panel tests' own)
+	if relay == "" {
+		relay = startRelay(t)
+	}
+	addrRelay := relay // what the address names (the panel reaches the same relay through its own address)
+	if a := os.Getenv("BUNKER_ADDR_RELAY"); a != "" {
+		addrRelay = a
+	}
 	vault.ScryptLogN = 10
 	dir := t.TempDir()
-	userSK := nostr.GeneratePrivateKey()
+	userSK := os.Getenv("BUNKER_USER_SECRET")
+	if userSK == "" {
+		userSK = nostr.GeneratePrivateKey()
+	}
 	userPK, _ := nostr.GetPublicKey(userSK)
 	_, _ = vault.Init(filepath.Join(dir, "key"), userSK, "a long enough password")
 	v := vault.New(filepath.Join(dir, "key"))
@@ -135,12 +145,12 @@ func TestHoldForAnExternalClient(t *testing.T) {
 	if profile == "" {
 		profile = "quill"
 	}
-	_, secret, _ := store.Add("held", profile, time.Now())
+	_, secret, _ := store.Add("held", profile, os.Getenv("BUNKER_URL"), time.Now())
 	tpk, _ := nostr.GetPublicKey(transport)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(secs)*time.Second)
 	defer cancel()
 	go ListenRelays(ctx, h, []string{relay})
 	time.Sleep(500 * time.Millisecond)
-	_ = os.WriteFile(os.Getenv("BUNKER_ADDR_FILE"), []byte(fmt.Sprintf("%s\n%s\n%s\n", relay, fmt.Sprintf("bunker://%s?relay=%s&secret=%s", tpk, relay, secret), userPK)), 0o600)
+	_ = os.WriteFile(os.Getenv("BUNKER_ADDR_FILE"), []byte(fmt.Sprintf("%s\n%s\n%s\n", relay, fmt.Sprintf("bunker://%s?relay=%s&secret=%s", tpk, addrRelay, secret), userPK)), 0o600)
 	<-ctx.Done()
 }

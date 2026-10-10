@@ -91,7 +91,11 @@ func (c *client) callID(id, method string, params ...string) (string, string) {
 }
 
 func (r *rig) pair(profile string) (*client, string) {
-	c, secret, err := r.store.Add(profile+"-app", profile, r.now)
+	url := ""
+	if profile == "panel" {
+		url = "https://relay.example/admin/api/"
+	}
+	c, secret, err := r.store.Add(profile+"-app", profile, url, r.now)
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -142,7 +146,7 @@ func TestKindsOutsideTheConnectionAreRefused(t *testing.T) {
 			t.Fatalf("kind %d: %q %q", k, res, e)
 		}
 	}
-	if _, e := c.call("sign_event", eventOfKind(27235)); e != "" {
+	if _, e := c.call("sign_event", loginEvent("https://relay.example/admin/api/login")); e != "" {
 		t.Fatal(e)
 	}
 	q, _ := r.pair("quill")
@@ -277,5 +281,26 @@ func TestForgedEventsAreIgnored(t *testing.T) {
 	ev.Sig = strings.Repeat("0", 128) // not signed by the client any more
 	if r.h.Handle(&ev) != nil {
 		t.Fatal("a badly signed request was answered")
+	}
+}
+
+func loginEvent(u string) string {
+	b, _ := json.Marshal(nostr.Event{Kind: 27235, Content: "", CreatedAt: nostr.Timestamp(1_800_000_000), Tags: nostr.Tags{{"u", u}, {"method", "POST"}}})
+	return string(b)
+}
+
+func TestPanelSignsOnlyLoginsForItsOwnAddress(t *testing.T) {
+	r := newRig(t, true)
+	c, _ := r.pair("panel")
+	if _, e := c.call("sign_event", loginEvent("https://relay.example/admin/api/login")); e != "" {
+		t.Fatal("refused its own login:", e)
+	}
+	for _, u := range []string{"https://evil.example/admin/api/login", "https://relay.example.evil.com/x", "http://relay.example/admin/api/login"} {
+		if res, e := c.call("sign_event", loginEvent(u)); res != "" || !strings.Contains(e, "may only sign a login for") {
+			t.Fatalf("%s: %q %q", u, res, e)
+		}
+	}
+	if _, e := c.call("sign_event", eventOfKind(27235)); !strings.Contains(e, "may only sign a login for") {
+		t.Fatal("signed a login that names no address")
 	}
 }

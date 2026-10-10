@@ -23,7 +23,8 @@ What it cannot protect against: someone with root on the machine **while it is u
 hivescope-bunker init                  # asks for the nsec and a password in the terminal (never as an argument)
 hivescope-bunker serve                 # starts locked (run it under systemd, see below)
 hivescope-bunker unlock                # asks for the password
-hivescope-bunker add quill-phone quill # prints a bunker:// address, ONCE: it is a password
+hivescope-bunker add quill-phone quill   # prints a bunker:// address, ONCE: it is a password
+hivescope-bunker add panel panel --url https://relay.hivescope.xyz/admin/api/login   # the panel profile signs only logins for that address
 hivescope-bunker list | revoke <name> | lock | status
 ```
 

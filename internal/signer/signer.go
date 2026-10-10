@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -165,6 +166,9 @@ func (h *Handler) sign(c conns.Conn, req nip46.Request, now time.Time) (string, 
 	if !slices.Contains(c.Kinds, evt.Kind) {
 		return "", fmt.Errorf("%s may not sign kind %d", c.Name, evt.Kind)
 	}
+	if c.URLPrefix != "" && !signsOnlyFor(evt, c.URLPrefix) {
+		return "", fmt.Errorf("%s may only sign a login for %s", c.Name, c.URLPrefix)
+	}
 	if h.Vault.Locked() {
 		return "", vault.ErrLocked
 	}
@@ -179,6 +183,17 @@ func (h *Handler) sign(c conns.Conn, req nip46.Request, now time.Time) (string, 
 	h.Logf("signed kind %d for %s (%s)", evt.Kind, c.Name, evt.ID[:8])
 	b, _ := json.Marshal(evt)
 	return string(b), nil
+}
+
+// signsOnlyFor: a NIP-98 event names the address it is for in its `u` tag; a panel connection signs only ones for its own address,
+// so a leaked pairing address cannot be used to log in to anything else.
+func signsOnlyFor(evt nostr.Event, prefix string) bool {
+	for _, tag := range evt.Tags {
+		if len(tag) >= 2 && tag[0] == "u" && strings.HasPrefix(tag[1], prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // allow counts signatures per connection over the last hour; a refused one is not counted.

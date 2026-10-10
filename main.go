@@ -95,10 +95,16 @@ func main() {
 	case "status":
 		reply(server.Ask(filepath.Join(dir, "control.sock"), server.Control{Cmd: "status"}))
 	case "add":
-		if len(os.Args) != 4 {
-			die("usage: add <name> <quill|nostrclaw|panel>")
+		if len(os.Args) != 4 && len(os.Args) != 6 {
+			if len(os.Args) != 6 || os.Args[4] != "--url" {
+				die("usage: add <name> <quill|nostrclaw|panel> [--url <https://… for the panel profile>]")
+			}
 		}
-		cmdAdd(dir, os.Args[2], os.Args[3])
+		url := ""
+		if len(os.Args) == 6 {
+			url = os.Args[5]
+		}
+		cmdAdd(dir, os.Args[2], os.Args[3], url)
 	case "list":
 		cmdList(dir)
 	case "revoke":
@@ -180,10 +186,10 @@ func cmdServe(dir string) {
 	server.ListenRelays(ctx, h, cfg.Relays)
 }
 
-func cmdAdd(dir, name, profile string) {
+func cmdAdd(dir, name, profile, urlPrefix string) {
 	cfg := loadConfig(dir)
 	store := conns.Open(filepath.Join(dir, "connections.json"))
-	_, secret, err := store.Add(name, profile, time.Now())
+	_, secret, err := store.Add(name, profile, urlPrefix, time.Now())
 	if err != nil {
 		die("%v", err)
 	}
@@ -194,6 +200,9 @@ func cmdAdd(dir, name, profile string) {
 	}
 	q.Set("secret", secret)
 	p := conns.Profiles[profile]
+	if urlPrefix != "" {
+		fmt.Printf("It signs only logins whose address starts with %s.\n", urlPrefix)
+	}
 	fmt.Printf("Connection %q (%s): may sign kinds %v, up to %d an hour.\nPaste this address into the app. It is shown only now and it is a password: do not share it.\n\nbunker://%s?%s\n", name, profile, p.Kinds, p.MaxPerHour, pk, q.Encode())
 }
 

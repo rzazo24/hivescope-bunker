@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -40,6 +41,7 @@ type Conn struct {
 	Created    int64    `json:"created"`
 	LastUsed   int64    `json:"last_used"`
 	Revoked    bool     `json:"revoked"`
+	URLPrefix  string   `json:"url_prefix,omitempty"` // panel only: the NIP-98 login it signs must be for a URL that starts with this
 }
 
 type Store struct {
@@ -75,10 +77,16 @@ func (s *Store) save(list []Conn) error {
 func (s *Store) List() ([]Conn, error) { s.mu.Lock(); defer s.mu.Unlock(); return s.load() }
 
 // Add creates a connection and returns the pairing secret ONCE: only its hash is kept.
-func (s *Store) Add(name, profile string, now time.Time) (Conn, string, error) {
+func (s *Store) Add(name, profile, urlPrefix string, now time.Time) (Conn, string, error) {
 	p, ok := Profiles[profile]
 	if !ok {
 		return Conn{}, "", fmt.Errorf("unknown profile %q", profile)
+	}
+	if profile == "panel" && !strings.HasPrefix(urlPrefix, "https://") && !strings.HasPrefix(urlPrefix, "http://127.0.0.1") && !strings.HasPrefix(urlPrefix, "http://localhost") { // http only for local tests
+		return Conn{}, "", errors.New("the panel profile needs --url <https://… the address its login is for>: it will sign only logins for that address")
+	}
+	if profile != "panel" && urlPrefix != "" {
+		return Conn{}, "", errors.New("--url only applies to the panel profile")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -96,7 +104,7 @@ func (s *Store) Add(name, profile string, now time.Time) (Conn, string, error) {
 	secret := hex.EncodeToString(b)
 	id := make([]byte, 4)
 	_, _ = rand.Read(id)
-	c := Conn{ID: hex.EncodeToString(id), Name: name, Profile: profile, SecretHash: hash(secret), Kinds: slices.Clone(p.Kinds), MaxPerHour: p.MaxPerHour, MaxClients: p.MaxClients, Created: now.Unix()}
+	c := Conn{ID: hex.EncodeToString(id), Name: name, Profile: profile, SecretHash: hash(secret), Kinds: slices.Clone(p.Kinds), MaxPerHour: p.MaxPerHour, MaxClients: p.MaxClients, URLPrefix: urlPrefix, Created: now.Unix()}
 	return c, secret, s.save(append(list, c))
 }
 
