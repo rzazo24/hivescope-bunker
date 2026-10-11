@@ -24,7 +24,7 @@ type Profile struct {
 }
 
 var Profiles = map[string]Profile{
-	"quill":     {Kinds: []int{1, 3, 6, 7, 10002}, MaxPerHour: 60, MaxClients: 1},
+	"quill":     {Kinds: []int{1, 3, 6, 7, 10000, 10002}, MaxPerHour: 60, MaxClients: 1}, // 10000: the mute list
 	"nostrclaw": {Kinds: []int{1, 5, 7, 10050}, MaxPerHour: 20, MaxClients: 1},
 	"panel":     {Kinds: []int{27235}, MaxPerHour: 30, MaxClients: 50}, // the relay panel signs only its NIP-98 login event
 }
@@ -122,6 +122,28 @@ func (s *Store) Revoke(idOrName string) error {
 		}
 	}
 	return fmt.Errorf("no active connection %q", idOrName)
+}
+
+// Refresh gives an existing connection what its profile allows today (a connection keeps a copy of its profile from when it was made, so a
+// profile that gains a kind does not reach the old ones by itself). The secret, the paired clients and the panel's URL stay as they were.
+func (s *Store) Refresh(idOrName string) (Conn, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list, err := s.load()
+	if err != nil {
+		return Conn{}, err
+	}
+	for i := range list {
+		if (list[i].ID == idOrName || list[i].Name == idOrName) && !list[i].Revoked {
+			p, ok := Profiles[list[i].Profile]
+			if !ok {
+				return Conn{}, fmt.Errorf("connection %q has an unknown profile %q", idOrName, list[i].Profile)
+			}
+			list[i].Kinds, list[i].MaxPerHour, list[i].MaxClients = slices.Clone(p.Kinds), p.MaxPerHour, p.MaxClients
+			return list[i], s.save(list)
+		}
+	}
+	return Conn{}, fmt.Errorf("no active connection %q", idOrName)
 }
 
 // ByClient finds the active connection a client key has paired with.

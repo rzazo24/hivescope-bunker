@@ -17,7 +17,7 @@ trade: **your key lives (encrypted) on a server instead of in your phone's keych
 
   | profile | kinds | per hour | notes |
   |---|---|---|---|
-  | `quill` | 1, 3, 6, 7, 10002 | 60 | notes, follow list, reposts, reactions, relay list |
+  | `quill` | 1, 3, 6, 7, 10000, 10002 | 60 | notes, follow list, reposts, reactions, mute list (public part), relay list |
   | `nostrclaw` | 1, 5, 7, 10050 | 20 | notes, deletions, reactions, DM relay list |
   | `panel` | 27235 | 30 | only a relay panel's NIP-98 login, and only for the address given with `--url` |
 
@@ -55,11 +55,12 @@ Default relays are `relay.hivescope.xyz` and `relay.damus.io`; change them in `c
 ./hivescope-bunker add panel panel --url https://your-relay.example/admin/api/login
 ./hivescope-bunker list                                  # connections, kinds, last use
 ./hivescope-bunker revoke quill-phone
+./hivescope-bunker refresh quill-phone                   # after an update that widens a profile: gives an existing connection the new kinds
 ```
 
 Paste the address into the app (never into a chat or a tool that logs it):
 
-- **Quill**: *Me › Connect Clave › Paste and connect* (any `bunker://` address works).
+- **Quill**: *Me › Connect a signer › Paste and connect* (any `bunker://` address works).
 - **nostrclaw**: `node dist/index.js connect-bunker --claude nostrclaw-sign` in your own terminal. A bunker approves by policy, not by a person, so its signatures come back in milliseconds and nostrclaw would discard them; set `"minHumanApprovalMs": 0` in its `policy.json` (see its README).
 - **A relay panel with bunker login** (as in [nostr-relay-khatru](https://github.com/rzazo24/nostr-relay-khatru)): paste the address in the panel's login.
 

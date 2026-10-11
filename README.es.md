@@ -17,7 +17,7 @@ Existe porque un firmador de móvil que depende de despertarse con un aviso pued
 
   | perfil | tipos | por hora | notas |
   |---|---|---|---|
-  | `quill` | 1, 3, 6, 7, 10002 | 60 | notas, lista de seguidos, reposts, reacciones, lista de relés |
+  | `quill` | 1, 3, 6, 7, 10000, 10002 | 60 | notas, lista de seguidos, reposts, reacciones, lista de silenciados (parte pública), lista de relés |
   | `nostrclaw` | 1, 5, 7, 10050 | 20 | notas, borrados, reacciones, lista de relés de mensajes privados |
   | `panel` | 27235 | 30 | solo el inicio de sesión NIP-98 de un panel, y solo para la dirección dada con `--url` |
 
@@ -55,11 +55,12 @@ Los relés por defecto son `relay.hivescope.xyz` y `relay.damus.io`; cámbialos 
 ./hivescope-bunker add panel panel --url https://tu-rele.example/admin/api/login
 ./hivescope-bunker list                                  # conexiones, tipos, último uso
 ./hivescope-bunker revoke quill-phone
+./hivescope-bunker refresh quill-phone                   # tras una actualización que amplía un perfil: da a una conexión ya creada los tipos nuevos
 ```
 
 Pega la dirección en la aplicación (nunca en un chat ni en una herramienta que la registre):
 
-- **Quill**: *Yo › Conectar Clave › Pegar y conectar* (sirve cualquier dirección `bunker://`).
+- **Quill**: *Yo › Conectar firmador › Pegar y conectar* (sirve cualquier dirección `bunker://`).
 - **nostrclaw**: `node dist/index.js connect-bunker --claude nostrclaw-sign` en tu propio terminal. Un bunker aprueba por política y no una persona, así que sus firmas vuelven en milisegundos y nostrclaw las descartaría; pon `"minHumanApprovalMs": 0` en su `policy.json` (mira su README).
 - **El panel de un relé con acceso por bunker** (como en [nostr-relay-khatru](https://github.com/rzazo24/nostr-relay-khatru)): pega la dirección en el inicio de sesión del panel.
 

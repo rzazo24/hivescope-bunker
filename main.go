@@ -78,7 +78,7 @@ func secretPrompt(prompt string) string {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("usage: hivescope-bunker init | serve | unlock | lock | status | add <name> <quill|nostrclaw|panel> | list | revoke <name>")
+		fmt.Println("usage: hivescope-bunker init | serve | unlock | lock | status | add <name> <quill|nostrclaw|panel> | list | revoke <name> | refresh <name>")
 		os.Exit(2)
 	}
 	dir := stateDir()
@@ -115,6 +115,15 @@ func main() {
 			die("%v", err)
 		}
 		fmt.Println("revoked: it stops working at the next request")
+	case "refresh":
+		if len(os.Args) != 3 {
+			die("usage: refresh <name or id>")
+		}
+		c, err := conns.Open(filepath.Join(dir, "connections.json")).Refresh(os.Args[2])
+		if err != nil {
+			die("%v", err)
+		}
+		fmt.Printf("%s (%s) may now sign kinds %v, up to %d an hour: from its next request\n", c.Name, c.Profile, c.Kinds, c.MaxPerHour)
 	default:
 		die("unknown command %q", os.Args[1])
 	}
