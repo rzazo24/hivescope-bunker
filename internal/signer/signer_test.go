@@ -2,6 +2,7 @@ package signer
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip46"
 
 	"hivescope-bunker/internal/conns"
+	"hivescope-bunker/internal/journal"
 	"hivescope-bunker/internal/vault"
 )
 
@@ -302,5 +304,56 @@ func TestPanelSignsOnlyLoginsForItsOwnAddress(t *testing.T) {
 	}
 	if _, e := c.call("sign_event", eventOfKind(27235)); !strings.Contains(e, "may only sign a login for") {
 		t.Fatal("signed a login that names no address")
+	}
+}
+
+func TestTheJournalRecordsSignedRefusedAndPairedWithoutContent(t *testing.T) {
+	r := newRig(t, true)
+	dir := filepath.Join(t.TempDir(), "journal")
+	j, err := journal.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.h.Journal = j
+	c, _ := r.pair("quill")
+	res, _ := c.call("sign_event", note("a secret-ish note"))
+	var ev nostr.Event
+	_ = json.Unmarshal([]byte(res), &ev)
+	c.call("sign_event", eventOfKind(4))        // a DM: not allowed for quill
+	r.newClient().call("sign_event", note("x")) // an unknown app
+	raw, err := os.ReadFile(filepath.Join(dir, "signatures.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "secret-ish") {
+		t.Fatal("the journal must not keep what was signed")
+	}
+	var got []journal.Entry
+	for _, l := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var e journal.Entry
+		if err := json.Unmarshal([]byte(l), &e); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, e)
+	}
+	if len(got) != 4 {
+		t.Fatalf("want paired, signed, refused, refused; got %+v", got)
+	}
+	if got[0].Outcome != "paired" || got[0].Conn != "quill-app" {
+		t.Fatalf("pairing: %+v", got[0])
+	}
+	if got[1].Outcome != "signed" || *got[1].Kind != 1 || got[1].ID != ev.ID || got[1].Conn != "quill-app" {
+		t.Fatalf("signature: %+v", got[1])
+	}
+	if got[2].Outcome != "refused" || *got[2].Kind != 4 || got[2].Reason == "" {
+		t.Fatalf("refused kind: %+v", got[2])
+	}
+	if got[3].Outcome != "refused" || got[3].Conn != "" || got[3].Client == "" {
+		t.Fatalf("unknown app: %+v", got[3])
+	}
+	st, _ := os.Stat(dir)
+	fi, _ := os.Stat(filepath.Join(dir, "signatures.jsonl"))
+	if st.Mode().Perm() != 0o755 || fi.Mode().Perm() != 0o644 {
+		t.Fatalf("the panel must be able to read it: %v %v", st.Mode(), fi.Mode())
 	}
 }

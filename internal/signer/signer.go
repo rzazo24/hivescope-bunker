@@ -19,17 +19,19 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip46"
 
 	"hivescope-bunker/internal/conns"
+	"hivescope-bunker/internal/journal"
 	"hivescope-bunker/internal/vault"
 )
 
 const maxAge = 10 * time.Minute // a request older than this is a replay (a relay re-sending), not something a person just did
 
 type Handler struct {
-	Vault  *vault.Vault
-	Conns  *conns.Store
-	Relays []string
-	Now    func() time.Time
-	Logf   func(format string, args ...any)
+	Vault   *vault.Vault
+	Conns   *conns.Store
+	Relays  []string
+	Now     func() time.Time
+	Logf    func(format string, args ...any)
+	Journal *journal.Journal // what was signed, refused and paired, for the relay's panel (nil: not kept)
 
 	transportSK string
 	transportPK string
@@ -88,6 +90,16 @@ func (h *Handler) Handle(ev *nostr.Event) *nostr.Event {
 	result, rerr := h.dispatch(ev.PubKey, req, now)
 	if rerr != nil {
 		h.Logf("refused %s from %s: %v", req.Method, short(ev.PubKey), rerr)
+		// a known app's refused signature is recorded by dispatch, with its kind
+		if c, known := h.Conns.ByClient(ev.PubKey); !known || req.Method != "sign_event" {
+			e := journal.Entry{Time: now.Unix(), Outcome: "refused", Method: req.Method, Reason: rerr.Error()}
+			if known {
+				e.Conn, e.Profile = c.Name, c.Profile
+			} else {
+				e.Client = short(ev.PubKey)
+			}
+			_ = h.Journal.Add(e)
+		}
 	}
 	_, out, err := sess.MakeResponse(req.ID, ev.PubKey, result, rerr)
 	if err != nil {
@@ -130,6 +142,7 @@ func (h *Handler) dispatch(client string, req nip46.Request, now time.Time) (str
 			return "", errors.New("not authorised")
 		}
 		h.Logf("paired %q (%s) with client %s", c.Name, c.Profile, short(client))
+		_ = h.Journal.Add(journal.Entry{Time: now.Unix(), Outcome: "paired", Conn: c.Name, Profile: c.Profile})
 		return "ack", nil
 	case "ping":
 		return "pong", nil
@@ -137,6 +150,19 @@ func (h *Handler) dispatch(client string, req nip46.Request, now time.Time) (str
 	c, ok := h.Conns.ByClient(client)
 	if !ok {
 		return "", errors.New("not authorised")
+	}
+	if req.Method == "sign_event" {
+		out, kind, err := h.sign(c, req, now)
+		e := journal.Entry{Time: now.Unix(), Outcome: "signed", Conn: c.Name, Profile: c.Profile, Kind: kind}
+		if err != nil {
+			e.Outcome, e.Reason = "refused", err.Error()
+		} else {
+			var evt nostr.Event
+			_ = json.Unmarshal([]byte(out), &evt)
+			e.ID = evt.ID
+		}
+		_ = h.Journal.Add(e)
+		return out, err
 	}
 	switch req.Method {
 	case "get_public_key":
@@ -149,40 +175,40 @@ func (h *Handler) dispatch(client string, req nip46.Request, now time.Time) (str
 		}
 		b, _ := json.Marshal(m)
 		return string(b), nil
-	case "sign_event":
-		return h.sign(c, req, now)
 	}
 	return "", fmt.Errorf("%q is not supported", req.Method)
 }
 
-func (h *Handler) sign(c conns.Conn, req nip46.Request, now time.Time) (string, error) {
+// sign returns the signed event, and the kind asked for (nil when the request was not even an event), for the journal.
+func (h *Handler) sign(c conns.Conn, req nip46.Request, now time.Time) (string, *int, error) {
 	if len(req.Params) != 1 {
-		return "", errors.New("sign_event takes one event")
+		return "", nil, errors.New("sign_event takes one event")
 	}
 	var evt nostr.Event
 	if err := json.Unmarshal([]byte(req.Params[0]), &evt); err != nil {
-		return "", errors.New("that is not an event")
+		return "", nil, errors.New("that is not an event")
 	}
+	kind := evt.Kind
 	if !slices.Contains(c.Kinds, evt.Kind) {
-		return "", fmt.Errorf("%s may not sign kind %d", c.Name, evt.Kind)
+		return "", &kind, fmt.Errorf("%s may not sign kind %d", c.Name, evt.Kind)
 	}
 	if c.URLPrefix != "" && !signsOnlyFor(evt, c.URLPrefix) {
-		return "", fmt.Errorf("%s may only sign a login for %s", c.Name, c.URLPrefix)
+		return "", &kind, fmt.Errorf("%s may only sign a login for %s", c.Name, c.URLPrefix)
 	}
 	if h.Vault.Locked() {
-		return "", vault.ErrLocked
+		return "", &kind, vault.ErrLocked
 	}
 	if !h.allow(c, now) {
-		return "", errors.New("too many signatures in the last hour")
+		return "", &kind, errors.New("too many signatures in the last hour")
 	}
 	evt.PubKey, evt.ID, evt.Sig = "", "", ""
 	if err := h.Vault.Sign(&evt); err != nil {
-		return "", err
+		return "", &kind, err
 	}
 	h.Conns.Touch(c.ID, now)
 	h.Logf("signed kind %d for %s (%s)", evt.Kind, c.Name, evt.ID[:8])
 	b, _ := json.Marshal(evt)
-	return string(b), nil
+	return string(b), &kind, nil
 }
 
 // signsOnlyFor: a NIP-98 event names the address it is for in its `u` tag; a panel connection signs only ones for its own address,

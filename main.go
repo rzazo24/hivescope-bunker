@@ -23,6 +23,7 @@ import (
 	"github.com/nbd-wtf/go-nostr/nip19"
 
 	"hivescope-bunker/internal/conns"
+	"hivescope-bunker/internal/journal"
 	"hivescope-bunker/internal/server"
 	"hivescope-bunker/internal/signer"
 	"hivescope-bunker/internal/vault"
@@ -183,6 +184,11 @@ func cmdServe(dir string) {
 	h, err := signer.New(cfg.TransportSecret, v, store, cfg.Relays)
 	if err != nil {
 		die("%v", err)
+	}
+	if j, err := journal.Open(filepath.Join(dir, "journal")); err != nil {
+		fmt.Fprintf(os.Stderr, "no journal (signing still works): %v\n", err)
+	} else {
+		h.Journal = j
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
