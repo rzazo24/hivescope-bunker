@@ -150,8 +150,8 @@ func TestKindsOutsideTheConnectionAreRefused(t *testing.T) {
 		t.Fatal(e)
 	}
 	q, _ := r.pair("quill")
-	if _, e := q.call("sign_event", eventOfKind(5)); e == "" { // quill cannot delete; nostrclaw can
-		t.Fatal("quill signed a deletion")
+	if _, e := q.call("sign_event", eventOfKind(4)); e == "" { // quill never signs a direct message
+		t.Fatal("quill signed a direct message")
 	}
 }
 
