@@ -105,9 +105,9 @@ func TestEndToEndThroughARealRelay(t *testing.T) {
 	if ok, _ := evt.CheckSignature(); !ok || evt.PubKey != userPK {
 		t.Fatal("the event is not signed by the user's key")
 	}
-	bad := nostr.Event{Kind: 0, Content: "{}", CreatedAt: nostr.Now(), Tags: nostr.Tags{}}
+	bad := nostr.Event{Kind: 4, Content: "secret", CreatedAt: nostr.Now(), Tags: nostr.Tags{}}
 	if err := client.SignEvent(ctx, &bad); err == nil {
-		t.Fatal("a profile (kind 0) was signed for quill")
+		t.Fatal("a direct message (kind 4) was signed for quill")
 	}
 }
 
