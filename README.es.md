@@ -17,7 +17,7 @@ Existe porque un firmador de móvil que depende de despertarse con un aviso pued
 
   | perfil | tipos | por hora | notas |
   |---|---|---|---|
-  | `quill` | 0, 1, 3, 5, 6, 7, 10000, 10002 | 60 | perfil (Quill cambia solo la descripción), notas, borrar tus notas, lista de seguidos, reposts, reacciones, lista de silenciados (parte pública), lista de relés |
+  | `quill` | 0, 1, 3, 5, 6, 7, 9734, 10000, 10002 | 60 | perfil (Quill cambia solo la descripción), notas, borrar tus notas, lista de seguidos, reposts, reacciones, peticiones de zap (las paga tu monedero, nunca se publican), lista de silenciados (parte pública), lista de relés |
   | `nostrclaw` | 1, 5, 7, 10050 | 20 | notas, borrados, reacciones, lista de relés de mensajes privados |
   | `panel` | 27235 | 30 | solo el inicio de sesión NIP-98 de un panel, y solo para la dirección dada con `--url` |
 
