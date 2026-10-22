@@ -1,6 +1,8 @@
 module hivescope-bunker
 
-go 1.25
+go 1.25.0
+
+toolchain go1.27.3
 
 require github.com/nbd-wtf/go-nostr v0.52.3
 
@@ -30,5 +32,5 @@ require (
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
 	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 )
