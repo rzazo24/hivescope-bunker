@@ -17,7 +17,7 @@ trade: **your key lives (encrypted) on a server instead of in your phone's keych
 
   | profile | kinds | per hour | notes |
   |---|---|---|---|
-  | `quill` | 0, 1, 3, 5, 6, 7, 9734, 10000, 10002 | 60 | profile (Quill changes only the description), notes, deleting your own notes, follow list, reposts, reactions, zap requests (paid by your own wallet, never published), mute list (public part), relay list |
+  | `quill` | 0, 1, 3, 5, 6, 7, 1111, 9734, 10000, 10002 | 60 | profile (Quill changes only the description), notes, answers to NIP-22 comments, deleting your own notes, follow list, reposts, reactions, zap requests (paid by your own wallet, never published), mute list (public part), relay list |
   | `nostrclaw` | 1, 5, 7, 10050 | 20 | notes, deletions, reactions, DM relay list |
   | `panel` | 27235 | 30 | only a relay panel's NIP-98 login, and only for the address given with `--url` |
 

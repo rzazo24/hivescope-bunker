@@ -24,7 +24,7 @@ type Profile struct {
 }
 
 var Profiles = map[string]Profile{
-	"quill":     {Kinds: []int{0, 1, 3, 5, 6, 7, 9734, 10000, 10002}, MaxPerHour: 60, MaxClients: 1}, // 0: the profile (Quill changes only its description); 5: deleting the reader's own notes; 9734: zap requests (paid by the reader's own wallet, never published); 10000: the mute list
+	"quill":     {Kinds: []int{0, 1, 3, 5, 6, 7, 1111, 9734, 10000, 10002}, MaxPerHour: 60, MaxClients: 1}, // 0: the profile (Quill changes only its description); 1111: an answer to a NIP-22 comment; 5: deleting the reader's own notes; 9734: zap requests (paid by the reader's own wallet, never published); 10000: the mute list
 	"nostrclaw": {Kinds: []int{1, 5, 7, 10050}, MaxPerHour: 20, MaxClients: 1},
 	"panel":     {Kinds: []int{27235}, MaxPerHour: 30, MaxClients: 50}, // the relay panel signs only its NIP-98 login event
 }
