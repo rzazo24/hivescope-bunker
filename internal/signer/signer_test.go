@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -355,5 +356,74 @@ func TestTheJournalRecordsSignedRefusedAndPairedWithoutContent(t *testing.T) {
 	fi, _ := os.Stat(filepath.Join(dir, "signatures.jsonl"))
 	if st.Mode().Perm() != 0o755 || fi.Mode().Perm() != 0o644 {
 		t.Fatalf("the panel must be able to read it: %v %v", st.Mode(), fi.Mode())
+	}
+}
+
+func blossomEvent(kind int, created int64, content string, tags nostr.Tags) string {
+	b, _ := json.Marshal(nostr.Event{Kind: kind, Content: content, CreatedAt: nostr.Timestamp(created), Tags: tags})
+	return string(b)
+}
+
+func TestUploadPermissionOnlyForOneFileForFiveMinutes(t *testing.T) {
+	r := newRig(t, true)
+	q, _ := r.pair("quill")
+	now := r.now.Unix()
+	hash := strings.Repeat("ab", 32)
+	upload := func(tags nostr.Tags) string { return blossomEvent(24242, now, "Upload a photo", tags) }
+	good := nostr.Tags{{"t", "upload"}, {"x", hash}, {"expiration", strconv.FormatInt(now+300, 10)}}
+	if _, e := q.call("sign_event", upload(good)); e != "" {
+		t.Fatalf("a proper upload permission was refused: %s", e)
+	}
+	bad := map[string]string{
+		"delete":          upload(nostr.Tags{{"t", "delete"}, {"x", hash}, {"expiration", strconv.FormatInt(now+300, 10)}}),
+		"list":            upload(nostr.Tags{{"t", "list"}, {"x", hash}, {"expiration", strconv.FormatInt(now+300, 10)}}),
+		"no expiration":   upload(nostr.Tags{{"t", "upload"}, {"x", hash}}),
+		"long expiration": upload(nostr.Tags{{"t", "upload"}, {"x", hash}, {"expiration", strconv.FormatInt(now+301, 10)}}),
+		"past expiration": upload(nostr.Tags{{"t", "upload"}, {"x", hash}, {"expiration", strconv.FormatInt(now, 10)}}),
+		"extra tag":       upload(nostr.Tags{{"t", "upload"}, {"x", hash}, {"expiration", strconv.FormatInt(now+300, 10)}, {"server", "https://a.example"}}),
+		"two t tags":      upload(nostr.Tags{{"t", "upload"}, {"t", "upload"}, {"expiration", strconv.FormatInt(now+300, 10)}}),
+		"bad hash":        upload(nostr.Tags{{"t", "upload"}, {"x", strings.ToUpper(hash)}, {"expiration", strconv.FormatInt(now+300, 10)}}),
+		"short hash":      upload(nostr.Tags{{"t", "upload"}, {"x", hash[:63]}, {"expiration", strconv.FormatInt(now+300, 10)}}),
+		"long content":    blossomEvent(24242, now, strings.Repeat("a", 101), good),
+		"future created":  blossomEvent(24242, now+3600, "Upload a photo", nostr.Tags{{"t", "upload"}, {"x", hash}, {"expiration", strconv.FormatInt(now+3600+300, 10)}}),
+		"old created":     blossomEvent(24242, now-3600, "Upload a photo", nostr.Tags{{"t", "upload"}, {"x", hash}, {"expiration", strconv.FormatInt(now-3600+300, 10)}}),
+	}
+	for name, ev := range bad {
+		if res, e := q.call("sign_event", ev); res != "" || e == "" {
+			t.Fatalf("%s: signed %q", name, res)
+		}
+	}
+	// refusals do not use up the hourly allowance: the rest of it is still there
+	for i := 0; i < 59; i++ {
+		if _, e := q.call("sign_event", note("x")); e != "" {
+			t.Fatalf("signature %d refused after refusals: %s", i+2, e)
+		}
+	}
+}
+
+func TestServerListOnlyHttpsServers(t *testing.T) {
+	r := newRig(t, true)
+	q, _ := r.pair("quill")
+	now := r.now.Unix()
+	list := func(content string, tags nostr.Tags) string { return blossomEvent(10063, now, content, tags) }
+	if _, e := q.call("sign_event", list("", nostr.Tags{{"server", "https://blossom.band"}, {"server", "https://blossom.primal.net"}})); e != "" {
+		t.Fatalf("a proper list was refused: %s", e)
+	}
+	bad := map[string]string{
+		"empty":     list("", nostr.Tags{}),
+		"content":   list("hi", nostr.Tags{{"server", "https://a.example"}}),
+		"http":      list("", nostr.Tags{{"server", "http://a.example"}}),
+		"path":      list("", nostr.Tags{{"server", "https://a.example/x"}}),
+		"slash":     list("", nostr.Tags{{"server", "https://a.example/"}}),
+		"upper":     list("", nostr.Tags{{"server", "https://A.example"}}),
+		"user":      list("", nostr.Tags{{"server", "https://u@a.example"}}),
+		"other tag": list("", nostr.Tags{{"server", "https://a.example"}, {"r", "wss://a.example"}}),
+		"repeated":  list("", nostr.Tags{{"server", "https://a.example"}, {"server", "https://a.example"}}),
+		"six":       list("", nostr.Tags{{"server", "https://a.example"}, {"server", "https://b.example"}, {"server", "https://c.example"}, {"server", "https://d.example"}, {"server", "https://e.example"}, {"server", "https://f.example"}}),
+	}
+	for name, ev := range bad {
+		if res, e := q.call("sign_event", ev); res != "" || e == "" {
+			t.Fatalf("%s: signed %q", name, res)
+		}
 	}
 }

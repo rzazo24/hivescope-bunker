@@ -192,6 +192,9 @@ func (h *Handler) sign(c conns.Conn, req nip46.Request, now time.Time) (string, 
 	if !slices.Contains(c.Kinds, evt.Kind) {
 		return "", &kind, fmt.Errorf("%s may not sign kind %d", c.Name, evt.Kind)
 	}
+	if err := checkContent(evt, now); err != nil {
+		return "", &kind, err
+	}
 	if c.URLPrefix != "" && !signsOnlyFor(evt, c.URLPrefix) {
 		return "", &kind, fmt.Errorf("%s may only sign a login for %s", c.Name, c.URLPrefix)
 	}
